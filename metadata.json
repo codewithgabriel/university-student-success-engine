@@ -1,0 +1,8 @@
+
+{
+  "name": "University Student Success Engine",
+  "description": "A predictive analytics dashboard for higher education institutions to identify at-risk students through automated grade, attendance, and LMS engagement analysis using Gemini AI.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
