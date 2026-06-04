@@ -27,6 +27,7 @@ const AdminView: React.FC<AdminViewProps> = ({ analysis, setAnalysis, uniData, o
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 15;
 
@@ -57,11 +58,13 @@ const AdminView: React.FC<AdminViewProps> = ({ analysis, setAnalysis, uniData, o
 
   const runAnalysis = async (students: StudentRecord[]) => {
     setIsAnalyzing(true);
+    setAnalysisError(null);
     try {
       const results = await analyzeStudentData(students);
       setAnalysis([...analysis.filter(a => !results.some(r => r.studentId === a.studentId)), ...results]);
     } catch (err) {
       console.error(err);
+      setAnalysisError(err instanceof Error ? err.message : 'Analysis failed. Please try again.');
     } finally {
       setIsAnalyzing(false);
     }
@@ -121,6 +124,13 @@ const AdminView: React.FC<AdminViewProps> = ({ analysis, setAnalysis, uniData, o
           <RefreshCw size={14} /> Regenerate Dataset
         </button>
       </div>
+
+      {analysisError && (
+        <div className="flex items-start gap-3 px-5 py-4 bg-rose-50 border border-rose-200 text-rose-700 rounded-2xl text-sm font-bold">
+          <span className="shrink-0 mt-0.5">⚠️</span>
+          <span>{analysisError}</span>
+        </div>
+      )}
 
       <AnimatePresence mode="wait">
         {selectedStudentId ? (

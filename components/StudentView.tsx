@@ -1,26 +1,72 @@
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, MapPin, Lightbulb, Trophy, AlertCircle, Sparkles, Mic, MicOff, MessageSquareText } from 'lucide-react';
-import { AnalysisResult, RiskLevel } from '../types';
+import { Search, MapPin, Lightbulb, Trophy, AlertCircle, Sparkles, Mic, MicOff, MessageSquareText, Loader2 } from 'lucide-react';
+import { AnalysisResult, RiskLevel, StudentRecord, UniversityData } from '../types';
+import { analyzeStudentData } from '../services/geminiService';
 import RiskBadge from './RiskBadge';
 import VoiceAdvisor from './VoiceAdvisor';
 
 interface StudentViewProps {
   analysis: AnalysisResult[];
+  setAnalysis: (a: AnalysisResult[]) => void;
+  uniData: UniversityData;
 }
 
-const StudentView: React.FC<StudentViewProps> = ({ analysis }) => {
+const StudentView: React.FC<StudentViewProps> = ({ analysis, setAnalysis, uniData }) => {
   const [searchId, setSearchId] = useState('');
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [hasSearched, setHasSearched] = useState(false);
   const [showVoice, setShowVoice] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSearch = () => {
-    if (!searchId.trim()) return;
-    const found = analysis.find(a => a.studentId.toLowerCase() === searchId.toLowerCase());
-    setResult(found || null);
-    setHasSearched(true);
+  // Flatten the full university roster so a student can be looked up directly,
+  // independent of whether an admin has already run an analysis.
+  const allStudents = useMemo<StudentRecord[]>(
+    () => uniData.faculties.flatMap(f => f.departments.flatMap(d => d.students)),
+    [uniData]
+  );
+
+  const handleSearch = async () => {
+    const query = searchId.trim();
+    if (!query) return;
+    setError(null);
+
+    // Already-analyzed? Use the cached result.
+    const existing = analysis.find(a => a.studentId.toLowerCase() === query.toLowerCase());
+    if (existing) {
+      setResult(existing);
+      setHasSearched(true);
+      return;
+    }
+
+    // Look the student up in the roster, then generate insights on demand.
+    const record = allStudents.find(s => s.studentId.toLowerCase() === query.toLowerCase());
+    if (!record) {
+      setResult(null);
+      setHasSearched(true);
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const [generated] = await analyzeStudentData([record]);
+      if (generated) {
+        setAnalysis([...analysis, generated]);
+        setResult(generated);
+      } else {
+        setResult(null);
+        setError('Could not generate insights for this student. Please try again.');
+      }
+    } catch (err) {
+      console.error(err);
+      setResult(null);
+      setError(err instanceof Error ? err.message : 'Analysis failed. Please try again.');
+    } finally {
+      setIsLoading(false);
+      setHasSearched(true);
+    }
   };
 
   return (
@@ -71,22 +117,52 @@ const StudentView: React.FC<StudentViewProps> = ({ analysis }) => {
                     onChange={(e) => {
                       setSearchId(e.target.value);
                       if (hasSearched) setHasSearched(false);
+                      if (error) setError(null);
                     }}
                     onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                     placeholder="Enter Matric Number (e.g. 2023-CS-1014)"
                     className="w-full h-14 pl-6 pr-14 rounded-2xl bg-slate-100/50 border-transparent focus:bg-white focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 font-bold transition-all text-slate-800 placeholder:text-slate-400 shadow-inner"
                   />
-                  <button 
+                  <button
                     onClick={handleSearch}
-                    className="absolute right-2 top-2 h-10 w-10 flex items-center justify-center bg-indigo-600 text-white rounded-xl shadow-lg shadow-indigo-200 hover:bg-indigo-700 active:scale-90 transition-all"
+                    disabled={isLoading}
+                    className="absolute right-2 top-2 h-10 w-10 flex items-center justify-center bg-indigo-600 text-white rounded-xl shadow-lg shadow-indigo-200 hover:bg-indigo-700 disabled:bg-indigo-400 active:scale-90 transition-all"
                   >
-                    <Search size={18} strokeWidth={3} />
+                    {isLoading ? <Loader2 size={18} strokeWidth={3} className="animate-spin" /> : <Search size={18} strokeWidth={3} />}
                   </button>
                 </div>
               </div>
 
               <AnimatePresence mode="wait">
-                {hasSearched && result ? (
+                {isLoading ? (
+                  <motion.div
+                    key="loading"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="text-center py-20 space-y-4"
+                  >
+                    <Loader2 size={40} className="mx-auto text-indigo-500 animate-spin" />
+                    <p className="text-slate-400 font-bold uppercase tracking-[0.2em] text-xs">
+                      Generating your insights…
+                    </p>
+                  </motion.div>
+                ) : error ? (
+                  <motion.div
+                    key="error"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="text-center py-16"
+                  >
+                    <div className="w-20 h-20 bg-rose-50 text-rose-400 rounded-full flex items-center justify-center mx-auto mb-6">
+                      <AlertCircle size={40} />
+                    </div>
+                    <h3 className="text-xl font-extrabold text-slate-900">Something Went Wrong</h3>
+                    <p className="text-slate-400 text-sm font-medium mt-2 max-w-xs mx-auto leading-relaxed">
+                      {error}
+                    </p>
+                  </motion.div>
+                ) : hasSearched && result ? (
                   <motion.div 
                     key="result"
                     initial={{ opacity: 0, scale: 0.95 }}

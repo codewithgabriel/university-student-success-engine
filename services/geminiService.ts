@@ -17,7 +17,7 @@ export const analyzeStudentData = async (records: StudentRecord[]): Promise<Anal
   ${JSON.stringify(records, null, 2)}`;
 
   const response = await ai.models.generateContent({
-    model: "gemini-3-pro-preview",
+    model: "gemini-2.5-flash",
     contents: prompt,
     config: {
       responseMimeType: "application/json",

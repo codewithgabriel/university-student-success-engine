@@ -78,7 +78,7 @@ const App: React.FC = () => {
                 onResetData={resetData}
               />
             ) : (
-              <StudentView analysis={analysis} />
+              <StudentView analysis={analysis} setAnalysis={setAnalysis} uniData={uniData} />
             )}
           </motion.div>
         </AnimatePresence>
